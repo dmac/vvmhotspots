@@ -104,7 +104,7 @@ func main() {
 outer:
 	for _, pair := range pairs {
 		for _, ignoreName := range ignoreNames {
-			if strings.Contains(pair.Name, ignoreName) {
+			if strings.Contains(pair.Name, ignoreName) || pair.Name == "Self time" {
 				continue outer
 			}
 		}
