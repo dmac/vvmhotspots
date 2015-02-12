@@ -108,7 +108,7 @@ outer:
 				continue outer
 			}
 		}
-		fmt.Fprintf(w, "%s\t%f\n", pair.Name, pair.RelTimeCPU)
+		fmt.Fprintf(w, "%s\t%.2f%%\n", pair.Name, pair.RelTimeCPU*100)
 		nPrinted++
 		if nPrinted >= numResults {
 			break
