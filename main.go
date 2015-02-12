@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/xml"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -22,10 +23,38 @@ type NameRelTimeCPU struct {
 	RelTimeCPU float32
 }
 
+func usage() {
+	fmt.Fprintf(os.Stderr, `Usage: %s [OPTIONS] FILE
+
+FILE is the path to an exported VisualVM call tree in XML format.
+Exported subtree call stacks work in addition to the full call stack,
+and will process more quickly.
+
+OPTIONS are:
+`, os.Args[0])
+	flag.PrintDefaults()
+}
+
 func main() {
-	data, err := ioutil.ReadFile("/Users/dmac/VisualVM Snapshots/csv/geoip1.bid-subtree.xml")
+	flag.Usage = usage
+	var rootName string
+	var numResults int
+	var ignoreNames stringslice
+	flag.StringVar(&rootName, "root", "", "Treat first matching function name as root node")
+	flag.IntVar(&numResults, "n", 50, "Report first n results")
+	flag.Var(&ignoreNames, "ignore", "Ignore matching function names (may specify multiple)")
+	flag.Parse()
+
+	if flag.NArg() != 1 {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	filename := flag.Arg(0)
+	data, err := ioutil.ReadFile(filename)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		os.Exit(1)
 	}
 	v := struct {
 		Tree Node `xml:"tree"`
@@ -33,7 +62,17 @@ func main() {
 	xml.Unmarshal(data, &v)
 
 	root := v.Tree.Nodes[0]
+
 	nodes := []*Node{root}
+	for i := 0; i < len(nodes); i++ {
+		if strings.Contains(nodes[i].Name, rootName) {
+			root = nodes[i]
+			break
+		}
+		nodes = append(nodes, nodes[i].Nodes...)
+	}
+
+	nodes = []*Node{root}
 	for i := 0; i < len(nodes); i++ {
 		nodes = append(nodes, nodes[i].Nodes...)
 	}
@@ -62,20 +101,31 @@ func main() {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 1, ' ', 0)
 	nPrinted := 0
-	nToPrint := 50
+outer:
 	for _, pair := range pairs {
-		if strings.HasPrefix(pair.Name, "clojure.lang") ||
-			strings.HasPrefix(pair.Name, "clojure.core") ||
-			pair.Name == "Self time" {
-			continue
+		for _, ignoreName := range ignoreNames {
+			if strings.Contains(pair.Name, ignoreName) {
+				continue outer
+			}
 		}
 		fmt.Fprintf(w, "%s\t%f\n", pair.Name, pair.RelTimeCPU)
 		nPrinted++
-		if nPrinted >= nToPrint {
+		if nPrinted >= numResults {
 			break
 		}
 	}
 	w.Flush()
+}
+
+type stringslice []string
+
+func (ss *stringslice) Set(s string) error {
+	*ss = append(*ss, s)
+	return nil
+}
+
+func (ss stringslice) String() string {
+	return fmt.Sprint([]string(ss))
 }
 
 type ByRelTimeCPU []NameRelTimeCPU
