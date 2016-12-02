@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"sort"
 	"strings"
@@ -59,7 +60,9 @@ func main() {
 	v := struct {
 		Tree Node `xml:"tree"`
 	}{}
-	xml.Unmarshal(data, &v)
+	if err := xml.Unmarshal(data, &v); err != nil {
+		log.Fatal(err)
+	}
 
 	root := v.Tree.Nodes[0]
 
